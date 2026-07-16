@@ -1,7 +1,8 @@
 pipeline {
   agent {
     docker {
-      image 'abhishekf5/maven-abhishek-docker-agent:v1'
+      // Swapped to an official image pre-configured with Maven and JDK 17
+      image 'maven:3.9.6-eclipse-temurin-17'
       args '--user root -v /var/run/docker.sock:/var/run/docker.sock' // mount Docker socket to access the host's Docker daemon
     }
   }
@@ -12,6 +13,7 @@ pipeline {
         //git branch: 'main', url: 'https://github.com/iam-veeramalla/Jenkins-Zero-To-Hero.git'
       }
     }
+    
     stage('Build and Test') {
       steps {
         sh 'ls -ltr'
@@ -19,26 +21,25 @@ pipeline {
         sh 'cd java-maven-sonar-argocd-helm-k8s/spring-boot-app && mvn clean package'
       }
     }
+    
     stage('Static Code Analysis') {
       environment {
         SONAR_URL = "http://3.24.168.210:9000"
       }
       steps {
         withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
-          // Explicitly points the shell environment to use the host's Java 21 path
+          // Cleared manual export overrides since native container Java is now 17
           sh '''
-            export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-            export PATH=$JAVA_HOME/bin:$PATH
             cd java-maven-sonar-argocd-helm-k8s/spring-boot-app
             mvn sonar:sonar -Dsonar.login=$SONAR_AUTH_TOKEN -Dsonar.host.url=${SONAR_URL}
           '''
         }
       }
     }
+    
     stage('Build and Push Docker Image') {
       environment {
         DOCKER_IMAGE = "premkrish308/ultimate-cicd:${BUILD_NUMBER}"
-        // DOCKERFILE_LOCATION = "java-maven-sonar-argocd-helm-k8s/spring-boot-app/Dockerfile"
         REGISTRY_CREDENTIALS = credentials('docker-cred')
       }
       steps {
@@ -51,6 +52,7 @@ pipeline {
         }
       }
     }
+    
     stage('Update Deployment File') {
         environment {
             GIT_REPO_NAME = "Jenkins-Zero-To-Hero"
