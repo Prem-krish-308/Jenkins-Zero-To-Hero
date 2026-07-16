@@ -20,15 +20,18 @@ pipeline {
       }
     }
     stage('Static Code Analysis') {
-      tools {
-        jdk 'JDK21' // <-- Overrides the container's Java 11 environment for this stage
-      }
       environment {
         SONAR_URL = "http://3.24.168.210:9000"
       }
       steps {
         withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
-          sh 'cd java-maven-sonar-argocd-helm-k8s/spring-boot-app && mvn sonar:sonar -Dsonar.login=$SONAR_AUTH_TOKEN -Dsonar.host.url=${SONAR_URL}'
+          // Explicitly points the shell environment to use the host's Java 21 path
+          sh '''
+            export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+            export PATH=$JAVA_HOME/bin:$PATH
+            cd java-maven-sonar-argocd-helm-k8s/spring-boot-app
+            mvn sonar:sonar -Dsonar.login=$SONAR_AUTH_TOKEN -Dsonar.host.url=${SONAR_URL}
+          '''
         }
       }
     }
