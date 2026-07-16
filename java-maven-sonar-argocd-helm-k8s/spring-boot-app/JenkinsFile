@@ -1,34 +1,32 @@
 pipeline {
-  agent {
-    docker {
-      // Swapped to an official image pre-configured with Maven and JDK 17
-      image 'maven:3.9.6-eclipse-temurin-17'
-      args '--user root -v /var/run/docker.sock:/var/run/docker.sock' // mount Docker socket to access the host's Docker daemon
-    }
-  }
+  agent none // <-- Removed global agent to allow stage-specific containers
+  
   stages {
     stage('Checkout') {
+      agent { label 'built-in' } // Runs on the host agent directly
       steps {
         sh 'echo passed'
-        //git branch: 'main', url: 'https://github.com/iam-veeramalla/Jenkins-Zero-To-Hero.git'
       }
     }
     
     stage('Build and Test') {
+      agent {
+        docker { image 'maven:3.9.6-eclipse-temurin-17' }
+      }
       steps {
-        sh 'ls -ltr'
-        // build the project and create a JAR file
         sh 'cd java-maven-sonar-argocd-helm-k8s/spring-boot-app && mvn clean package'
       }
     }
     
     stage('Static Code Analysis') {
+      agent {
+        docker { image 'maven:3.9.6-eclipse-temurin-17' }
+      }
       environment {
         SONAR_URL = "http://3.24.168.210:9000"
       }
       steps {
         withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
-          // Cleared manual export overrides since native container Java is now 17
           sh '''
             cd java-maven-sonar-argocd-helm-k8s/spring-boot-app
             mvn sonar:sonar -Dsonar.login=$SONAR_AUTH_TOKEN -Dsonar.host.url=${SONAR_URL}
@@ -38,6 +36,12 @@ pipeline {
     }
     
     stage('Build and Push Docker Image') {
+      agent {
+        docker {
+          image 'docker:latest' // <-- This image natively includes the docker CLI
+          args '--user root -v /var/run/docker.sock:/var/run/docker.sock'
+        }
+      }
       environment {
         DOCKER_IMAGE = "premkrish308/ultimate-cicd:${BUILD_NUMBER}"
         REGISTRY_CREDENTIALS = credentials('docker-cred')
@@ -54,6 +58,7 @@ pipeline {
     }
     
     stage('Update Deployment File') {
+        agent { label 'built-in' } // Runs on the host agent to use git natively
         environment {
             GIT_REPO_NAME = "Jenkins-Zero-To-Hero"
             GIT_USER_NAME = "Prem-krish-308"
