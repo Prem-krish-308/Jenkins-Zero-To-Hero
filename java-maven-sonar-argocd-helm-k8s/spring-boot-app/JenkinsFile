@@ -1,9 +1,9 @@
 pipeline {
-  agent none // <-- Removed global agent to allow stage-specific containers
+  agent none // Global agent disabled to allow specialized containers per stage
   
   stages {
     stage('Checkout') {
-      agent { label 'built-in' } // Runs on the host agent directly
+      agent { label 'built-in' } // Runs directly on the host agent
       steps {
         sh 'echo passed'
       }
@@ -38,7 +38,7 @@ pipeline {
     stage('Build and Push Docker Image') {
       agent {
         docker {
-          image 'docker:latest' // <-- This image natively includes the docker CLI
+          image 'docker:latest' // Includes Docker CLI binaries natively
           args '--user root -v /var/run/docker.sock:/var/run/docker.sock'
         }
       }
@@ -55,10 +55,16 @@ pipeline {
             }
         }
       }
+      // Reclaims folder permissions under root before leaving this stage
+      post {
+        always {
+          sh 'rm -rf java-maven-sonar-argocd-helm-k8s/spring-boot-app/target'
+        }
+      }
     }
     
     stage('Update Deployment File') {
-        agent { label 'built-in' } // Runs on the host agent to use git natively
+        agent { label 'built-in' } // Drops out of docker environment to access native git commands safely
         environment {
             GIT_REPO_NAME = "Jenkins-Zero-To-Hero"
             GIT_USER_NAME = "Prem-krish-308"
