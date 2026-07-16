@@ -20,6 +20,9 @@ pipeline {
       }
     }
     stage('Static Code Analysis') {
+      tools {
+        jdk 'JDK21' // <-- Overrides the container's Java 11 environment for this stage
+      }
       environment {
         SONAR_URL = "http://3.24.168.210:9000"
       }
